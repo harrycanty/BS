@@ -45,6 +45,8 @@ How to Run
     python main.py
     ```
 
+---
+
 Financial background
 
 This app uses the **Black-Scholes model**, a standard mathematical model for pricing European-style options. It assumes:
@@ -54,7 +56,7 @@ This app uses the **Black-Scholes model**, a standard mathematical model for pri
 - Constant interest rates
 - Log-normally distributed returns
 
-⸻
+---
 
 Author
 
