@@ -3,61 +3,66 @@ import scipy.stats as stats
 
 class BS():
     def __init__(self, spot, strike, rate, days, volatility, multiplier=100):
-        self.spot = spot
-        self.strike = strike
-        self.rate = rate
-        self.days = days / 365
-        self.volatility = volatility
-        self.multiplier = multiplier
+        self.S = spot
+        self.K = strike
+        self.r = rate
+        self.t = days / 365 # Time in years
+        self.V = volatility
+        self.M = multiplier
+
+        # Avoid division errors
+        if self.t <=0 or self.V <=0 or self.S <=0 or self.K <=0:
+            raise ValueError("Time to expiry and/or volatility must be greater than 0")
         
-        self.d1 = (np.log(self.spot/self.strike)+(self.rate+0.5*self.volatility**2)*(self.days)) / (self.volatility*np.sqrt(self.days))
+        # d1 and d2 calculations
+        self.d1 = (np.log(self.S/self.K)+(self.r+0.5*self.V**2)*(self.t)) / (self.V*np.sqrt(self.t))
 
-        self.d2 = self.d1 - self.volatility*np.sqrt(self.days)
+        self.d2 = self.d1 - self.V*np.sqrt(self.t)
 
-        self.N_tag_d1 = (np.exp(-0.5*self.d1**2)) / (np.sqrt(2*np.pi))
+        # Extra variables (Optional)
+        self.phi_d1 = np.exp(-0.5*self.d1**2) / (np.sqrt(2*np.pi))
+        self.Nd1 = stats.norm.cdf(self.d1)
+        self.Nd2 = stats.norm.cdf(self.d2)
+        self.Nm_d1 = stats.norm.cdf(-self.d1)
+        self.Nm_d2 = stats.norm.cdf(-self.d2)
 
 
 
-
+    # ------------------ Prices (per contract, scaled by M ------------------
     def call_price(self):
-        a = self.spot*stats.norm.cdf(self.d1)
-        b = np.exp(-self.rate*self.days)*self.strike*stats.norm.cdf(self.d2)
-        return '{:,.0f}'.format(round(a-b,2)*self.multiplier)
+        return self.M * (self.S * self.Nd1 - self.K * np.exp(-self.r * self.t) * self.Nd2)
     
     def put_price(self):
-        a = self.strike*np.exp(-self.rate*self.days)*stats.norm.cdf(-self.d2)
-        b = self.spot*stats.norm.cdf(-self.d1)
-        return '{:,.0f}'.format(round(a-b,2)*self.multiplier)
+        return self.M * (self.K * np.exp(-self.r * self.t) * self.Nm_d2 - self.S * self.Nm_d1)
     
+    # ------------------ Delta ------------------
     def call_delta(self):
-        return round(stats.norm.cdf(self.d1),2)
+         return (self.Nd1) * self.M
     
     def put_delta(self):
-        return round(stats.norm.cdf(self.d1)-1,2)
+        return (self.Nd1 -1.0) * self.M
     
-    def call_gamma(self):
-        return round(self.N_tag_d1 / (self.spot * self.volatility * np.sqrt(self.days)),4)
+    # ------------------ Gamma (same for call and put) ------------------
+    def gamma(self):
+        return (self.phi_d1 / (self.S * self.V * np.sqrt(self.t)))*self.M
     
-    def put_gamma(self):
-        return round(self.call_gamma(),4)
+    # ------------------ Vega (per 1 vol point, scaled by M) ------------------
+    def vega(self):
+         return self.M * (self.S * self.phi_d1 * np.sqrt(self.t) / 100.0) # Per 1 vol point
     
-    def call_vega(self):
-        return round(np.sqrt((self.days)/(2*np.pi))*self.spot*np.exp(-0.5*(self.d1)**2))
-    
-    def put_vega(self):
-        return round(self.call_vega(),2)
-    
+    # ------------------ Theta (per year) For per day divide by 365 ------------------
     def call_theta(self):
-        return round(-(self.strike*np.exp(-self.rate*self.days))*self.rate*stats.norm.cdf(self.d2)-(self.spot*(self.volatility*np.exp(-0.5*(self.d1)**2)))/np.sqrt(8*np.pi*self.days),2)
+        return (-(self.S*self.V*self.phi_d1)/(2*np.sqrt(self.t))-self.r * self.K *np.exp(-self.r * self.t)* self.Nd2)*self.M
     
     def put_theta(self):
-        return round(-(self.strike*np.exp(-self.rate*self.days))*self.rate*stats.norm.cdf(self.d2)-(self.strike*np.exp(self.rate*self.days))*(self.volatility*np.exp(-0.5*(self.d2)**2))/np.sqrt(8*np.pi*self.days) + self.rate*self.strike*np.exp(-self.rate*self.days),2)
+        return (-(self.S*self.V*self.phi_d1)/(2*np.sqrt(self.t))+self.r * self.K *np.exp(-self.r * self.t)* self.Nm_d2)*self.M
     
-    def call_ro(self):
-        return round(self.strike*self.days*np.exp(-self.rate*self.days)*stats.norm.cdf(self.d2),2)
+    # ------------------ Rho (per 1% rate change) ------------------
+    def call_rho(self):
+        return (self.K *self.t * np.exp(-self.r*self.t)*self.Nd2 /100 ) * self.M # per 1% change
                                                                                     
-    def put_ro(self):
-        return round(self.strike * self.days * np.exp(-self.rate * self.days) * stats.norm.cdf(-self.d2), 2)
+    def put_rho(self):
+        return (-self.K *self.t*np.exp(-self.r*self.t)*self.Nm_d2 /100) * self.M # per 1% change
     
     
     
