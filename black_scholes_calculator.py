@@ -1,204 +1,156 @@
 from black_scholes import BS
-import numpy as np
-from tkinter import *
+import tkinter as tk
+from tkinter import ttk, messagebox
 
-root=Tk()
-root.configure(background="black")
-root.title("HC BS")
-root.geometry("200x400")
+# ---------- Formatting helpers ----------
+def fmt_money(x):   # prices, vega, theta, rho (cash)
+    return f"{x:,.2f}"
 
-call_price = Label()
-call_delta = Label()
-call_gamma = Label()
-call_vega = Label()
-call_theta = Label()
-call_rho = Label()
+def fmt_small(x):   # deltas/gammas
+    return f"{x:.4f}"
 
-put_price = Label()
-put_delta = Label()
-put_gamma = Label()
-put_vega = Label()
-put_theta = Label()
-put_rho = Label()
+# ---------- App ----------
+class BSApp(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("HC Black–Scholes")
+        self.geometry("520x420")
+        self.minsize(520, 420)
+        self.style = ttk.Style(self)
+        self.style.theme_use("clam")
 
-multiplier = Label ()
+        # Root padding
+        container = ttk.Frame(self, padding=12)
+        container.grid(sticky="nsew")
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
+        container.columnconfigure(0, weight=1)
 
+        # Inputs frame
+        inputs = ttk.LabelFrame(container, text="Inputs")
+        inputs.grid(row=0, column=0, sticky="ew")
+        for i in range(4):
+            inputs.columnconfigure(i, weight=1)
 
-def bs_calc(event=None):
-    global call_price, call_delta,call_gamma, call_vega, call_theta, call_rho, put_price, put_delta, put_gamma, put_vega, put_theta, put_rho, multiplier
+        # Input variables
+        self.var_spot = tk.StringVar(value="1800")
+        self.var_strike = tk.StringVar(value="1800")
+        self.var_rate = tk.StringVar(value="0.01")      # decimal
+        self.var_days = tk.StringVar(value="30")        # days
+        self.var_vol = tk.StringVar(value="0.20")       # decimal
+        self.var_mult = tk.StringVar(value="100")       # contract multiplier
 
-    call_price.pack_forget()
-    call_delta.pack_forget()
-    call_gamma.pack_forget()
-    call_vega.pack_forget()
-    call_theta.pack_forget()
-    call_rho.pack_forget()
-    
-    put_price.pack_forget()
-    put_delta.pack_forget()
-    put_gamma.pack_forget()
-    put_vega.pack_forget()
-    put_theta.pack_forget()
-    put_rho.pack_forget()
+        # Row 0
+        self._add_labeled_entry(inputs, "Spot", self.var_spot, 0, 0)
+        self._add_labeled_entry(inputs, "Strike", self.var_strike, 0, 1)
+        self._add_labeled_entry(inputs, "Rate (decimal)", self.var_rate, 0, 2)
+        self._add_labeled_entry(inputs, "Days to Expiry", self.var_days, 0, 3)
+        # Row 1
+        self._add_labeled_entry(inputs, "Vol (decimal)", self.var_vol, 1, 0)
+        self._add_labeled_entry(inputs, "Multiplier", self.var_mult, 1, 1)
 
-    multiplier.pack_forget()
+        # Action row
+        actions = ttk.Frame(container)
+        actions.grid(row=1, column=0, sticky="ew", pady=(8, 0))
+        actions.columnconfigure(0, weight=1)
+        self.btn_calc = ttk.Button(actions, text="Calculate", command=self.on_calculate)
+        self.btn_calc.grid(row=0, column=0, sticky="e")
 
-    option = BS(float(spot.get()), 
-                int(strike.get()),
-                float(rate.get()),
-                int(days.get()),
-                float(vol.get()),
-                float(multiplier.get()))
-    
+        # Output grid
+        outputs = ttk.LabelFrame(container, text="Results (per contract)")
+        outputs.grid(row=2, column=0, sticky="nsew", pady=(8, 0))
+        container.rowconfigure(2, weight=1)
 
-    call_price = Label(call_frame,text=option.call_price(),fg="yellow",bg="purple")
-    call_delta = Label(call_frame,text=option.call_delta(),fg="yellow",bg="purple")
-    call_gamma = Label(call_frame,text=option.call_gamma(),fg="yellow",bg="purple")
-    call_vega = Label(call_frame,text=option.call_vega(),fg="yellow",bg="purple")
-    call_theta = Label(call_frame,text=option.call_theta(),fg="yellow",bg="purple")
-    call_rho = Label(call_frame,text=option.call_ro(),fg="yellow",bg="purple")
-  
-    put_price = Label(put_frame,text=option.put_price(),fg="yellow",bg="purple")
-    put_delta = Label(put_frame,text=option.put_delta(),fg="yellow",bg="purple")
-    put_gamma = Label(put_frame,text=option.put_gamma(),fg="yellow",bg="purple")
-    put_vega = Label(put_frame,text=option.put_vega(),fg="yellow",bg="purple")
-    put_theta = Label(put_frame,text=option.put_theta(),fg="yellow",bg="purple")
-    put_rho = Label(put_frame,text=option.put_ro(),fg="yellow",bg="purple")
-    
-    call_price.pack()
-    call_delta.pack()
-    call_gamma.pack()
-    call_vega.pack()
-    call_theta.pack()
-    call_rho.pack()
-    
-    put_price.pack()
-    put_delta.pack()
-    put_gamma.pack()
-    put_vega.pack()
-    put_theta.pack()
-    put_rho.pack()
-    
-    
-root.bind('<Return>', bs_calc)
+        # Metrics and label store
+        self.metrics = ["Price", "Delta", "Gamma", "Vega", "Theta (per yr)", "Rho (per 1%)"]
+        self.call_labels = {}
+        self.put_labels = {}
 
-#Spot
-spot_name = Label(root, text="Spot", bg = "purple", fg="white", font = 16, padx=15)
-spot_name.grid(row=0, column=0, padx = 0, pady=5)
+        # Header
+        ttk.Label(outputs, text="").grid(row=0, column=0, padx=6)  # empty top-left
+        ttk.Label(outputs, text="Call", font=("", 10, "bold")).grid(row=0, column=1, padx=6)
+        ttk.Label(outputs, text="Put", font=("", 10, "bold")).grid(row=0, column=2, padx=6)
 
-spot = Entry(root, fg="red", bg="yellow", borderwidth=5, font= 16, width = 10)
-spot.grid(row=0,column=1)
-spot.insert(0,1800)
+        # Rows
+        for i, m in enumerate(self.metrics, start=1):
+            ttk.Label(outputs, text=m).grid(row=i, column=0, sticky="w", padx=6, pady=2)
+            self.call_labels[m] = ttk.Label(outputs, text="—")
+            self.put_labels[m]  = ttk.Label(outputs, text="—")
+            self.call_labels[m].grid(row=i, column=1, sticky="e", padx=6)
+            self.put_labels[m].grid(row=i, column=2, sticky="e", padx=6)
 
-# Strike
-strike_name = Label(root,text="Strike",bg="black", fg="white", font = 16)
-strike_name.grid(row = 1, column=0, padx = 0, pady=0)
+        # Footer
+        footer = ttk.Frame(container)
+        footer.grid(row=3, column=0, sticky="ew", pady=(8, 0))
+        ttk.Label(footer, text="Made by Harry Canty").grid(row=0, column=0, sticky="w")
 
-strike=Entry(root,fg="white", bg="black", borderwidth=5, font = 16, width=10)
-strike.grid(row=1,column=1)
-strike.insert(0,1800)
+        # Bind Enter
+        self.bind("<Return>", lambda e: self.on_calculate())
 
-#Rate
-rate_name = Label(root, text='Risk-free rate ( decimal )', bg='black', fg='white', font=('Helvetica', 16))
-rate_name.grid(row=2, column=0, pady=0)
+    def _add_labeled_entry(self, parent, label, var, row, col):
+        frame = ttk.Frame(parent)
+        frame.grid(row=row, column=col, sticky="ew", padx=6, pady=4)
+        frame.columnconfigure(1, weight=1)
+        ttk.Label(frame, text=label).grid(row=0, column=0, sticky="w")
+        ent = ttk.Entry(frame, textvariable=var, width=12)
+        ent.grid(row=0, column=1, sticky="ew")
+        return ent
 
-rate = Entry(root, fg='white', bg='black', borderwidth=5, font=('Helvetica', 16), width=10)
-rate.grid(row=2, column=1)
-rate.insert(0, 0.01)
+    def _read_inputs(self):
+        try:
+            S = float(self.var_spot.get())
+            K = float(self.var_strike.get())
+            r = float(self.var_rate.get())
+            days = float(self.var_days.get())
+            vol = float(self.var_vol.get())
+            mult = float(self.var_mult.get())
+        except ValueError:
+            raise ValueError("All inputs must be numeric.")
+        if S <= 0 or K <= 0 or days <= 0 or vol <= 0 or mult <= 0:
+            raise ValueError("Spot, Strike, Days, Volatility, and Multiplier must be > 0.")
+        return S, K, r, days, vol, mult
 
-#Days
-days_name = Label(root, text='Time to maturity (days)', bg='black', fg='white', font=('Helvetica', 16))
-days_name.grid(row=3, column=0, pady=0)
+    def on_calculate(self):
+        try:
+            S, K, r, days, vol, mult = self._read_inputs()
+            bs = BS(S, K, r, days, vol, mult)
 
-days = Entry(root, fg='white', bg='black', borderwidth=5, font=('Helvetica', 16), width=10)
-days.grid(row=3, column=1)
-days.insert(0, 30)
+            # Prices (floats expected from BS), format for display here
+            call_price = bs.call_price()
+            put_price  = bs.put_price()
 
-#Vol
-vol_name = Label(root, text='Volatility ( decimal )', bg='black', fg='white', font=('Helvetica', 16))
-vol_name.grid(row=4, column=0, pady=0)
+            # Greeks
+            call_delta = bs.call_delta()
+            put_delta  = bs.put_delta()
+            gamma      = bs.gamma()
+            vega       = bs.vega()
+            call_theta = bs.call_theta()
+            put_theta  = bs.put_theta()
+            call_rho   = bs.call_rho() if hasattr(bs, "call_rho") else bs.call_rho()  # name safe
+            put_rho    = bs.put_rho()
 
-vol = Entry(root, fg='white', bg='black', borderwidth=5, font=('Helvetica', 16), width=10)
-vol.grid(row=4, column=1)
-vol.insert(0, 0.20)
+            # Update labels (formatting kept consistent)
+            self.call_labels["Price"].config(text=fmt_money(call_price))
+            self.put_labels["Price"].config(text=fmt_money(put_price))
 
-#Multyplier
-mult_name = Label(root, text='Option Multiplier', bg='black', fg='white', font=('Helvetica', 16))
-mult_name.grid(row=5, column=0, pady=0)
+            self.call_labels["Delta"].config(text=fmt_small(call_delta))
+            self.put_labels["Delta"].config(text=fmt_small(put_delta))
 
-multiplier = Entry(root, fg='white', bg='black', borderwidth=5, font=('Helvetica', 16), width=10)
-multiplier.grid(row=5, column=1)
-multiplier.insert(0, 100)
+            self.call_labels["Gamma"].config(text=fmt_small(gamma))
+            self.put_labels["Gamma"].config(text=fmt_small(gamma))  # same for put
 
-"------------------------------------------------"  
+            self.call_labels["Vega"].config(text=fmt_money(vega))
+            self.put_labels["Vega"].config(text=fmt_money(vega))    # same for put
 
-calculate_btn = Button(root,text="Calculate",
-                         fg="green",
-                         bg="purple",
-                         font=16,
-                         command=bs_calc)
-calculate_btn.grid(row=6, column=1, pady=60)
+            self.call_labels["Theta (per yr)"].config(text=fmt_money(call_theta))
+            self.put_labels["Theta (per yr)"].config(text=fmt_money(put_theta))
 
-"------------------------------------------------"
-frame1=LabelFrame(root,padx=0,pady=0)
-frame1.grid(row=7, column=1, rowspan=6)
+            self.call_labels["Rho (per 1%)"].config(text=fmt_money(call_rho))
+            self.put_labels["Rho (per 1%)"].config(text=fmt_money(put_rho))
 
-call = Label(frame1,
-              text="Call",
-              width=5,
-              font=("Ariel", 15, "underline"),
-              fg="white",
-              bg="purple")
-call.grid(row=0, column=0)
+        except Exception as e:
+            messagebox.showerror("Input Error", str(e))
 
-put = Label(frame1,
-          text="Put",
-          width=5,
-          font=("Ariel",15, "underline"), 
-          fg="white",
-          bg="purple")
-put.grid(row=0,column=3)
-
-"------------------------------------------"
-
-call_frame = LabelFrame(frame1, width=40, height=20, bg="black")
-call_frame.grid(row=1, column=0,rowspan=6)
-
-put_frame = Label(frame1, width=40, height=20, bg="black")
-put_frame.grid(row=1, column =3,rowspan=6)
-
-"------------------------------------------"
-
-price = Label(frame1, text="Price", font=16,fg="white",bg="purple")
-price.grid(row=1, column=2)
-
-delta = Label(frame1, text="Delta", font=16,fg="white",bg="purple")
-delta.grid(row=2, column=2)
-
-gamma = Label(frame1, text="Gamma", font=16,fg="white",bg="purple")
-gamma.grid(row=3, column=2)
-
-vega = Label(frame1, text="Vega", font=16,fg="white",bg="purple")
-vega.grid(row=4, column=2)
-
-theta = Label(frame1, text="Theta", font=16,fg="white",bg="purple")
-theta.grid(row=5, column=2)
-
-ro = Label(frame1, text="Ro", font=16,fg="white",bg="purple")
-ro.grid(row=6, column=2)
-
-"--------------------------------------"
-marking=Label(root,
-              text="Made by Harry Canty",
-              fg="White",
-              bg="orange",
-              font=("Georgia",15),
-              pady=12)
-
-marking.grid(row=14,column=1)
-
-def bs_calc ():
-    a = 1
-
-
-root.mainloop()
+if __name__ == "__main__":
+    app = BSApp()
+    app.mainloop()
