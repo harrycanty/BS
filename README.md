@@ -4,6 +4,10 @@ Black-Scholes Option Pricer (GUI)
 
 A simple Python desktop app that calculates European call and put option prices using the Black-Scholes model. The app has a graphical user interface built with `tkinter`.
 
+<img width="1435" height="854" alt="image" src="https://github.com/user-attachments/assets/93ca55a4-7f43-4094-96c4-b9dae59f9e4e" />
+<img width="1440" height="900" alt="Screenshot 2025-08-10 at 23 22 13" src="https://github.com/user-attachments/assets/ecc8b477-53c8-4f59-bcc2-f836a31cea94" />
+
+
 ---
 
 Features
@@ -29,8 +33,8 @@ How to Run
 1. Clone the repository:
 
     ```bash
-    git clone https://github.com/yourusername/option-pricer.git
-    cd option-pricer
+    git clone https://github.com/harrycanty/BS.git
+    cd BS
     ```
 
 2. Install dependencies:
@@ -42,19 +46,17 @@ How to Run
 3. Run the app:
 
     ```bash
-    python main.py
+    python black_scholes_calculator.py 
     ```
 
 ---
-
-Financial background
 
 This app uses the **Black-Scholes model**, a standard mathematical model for pricing European-style options. It assumes:
 
 - No dividends
 - Constant volatility
 - Constant interest rates
-- Log-normally distributed returns
+- Log-normally distributed asset returns
 
 ---
 
