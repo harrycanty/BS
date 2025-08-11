@@ -62,7 +62,7 @@ class BSApp(tk.Tk):
         container.rowconfigure(2, weight=1)
 
         # Metrics and label store
-        self.metrics = ["Price", "Delta", "Gamma", "Vega", "Theta (per yr)", "Rho (per 1%)"]
+        self.metrics = ["Price", "Delta", "Gamma", "Vega", "Theta (per day)", "Rho (per 1%)"]
         self.call_labels = {}
         self.put_labels = {}
 
@@ -115,7 +115,7 @@ class BSApp(tk.Tk):
             S, K, r, days, vol, mult = self._read_inputs()
             bs = BS(S, K, r, days, vol, mult)
 
-            # Prices (floats expected from BS), format for display here
+            # Prices 
             call_price = bs.call_price()
             put_price  = bs.put_price()
 
@@ -142,8 +142,8 @@ class BSApp(tk.Tk):
             self.call_labels["Vega"].config(text=fmt_money(vega))
             self.put_labels["Vega"].config(text=fmt_money(vega))    # same for put
 
-            self.call_labels["Theta (per yr)"].config(text=fmt_money(call_theta))
-            self.put_labels["Theta (per yr)"].config(text=fmt_money(put_theta))
+            self.call_labels["Theta (per day)"].config(text=fmt_money(call_theta/365))
+            self.put_labels["Theta (per day)"].config(text=fmt_money(put_theta/365))
 
             self.call_labels["Rho (per 1%)"].config(text=fmt_money(call_rho))
             self.put_labels["Rho (per 1%)"].config(text=fmt_money(put_rho))
